@@ -1,0 +1,38 @@
+# --- Секреты (НИКОГДА не коммитить) ---
+.env
+.env.*
+!.env.example
+.streamlit/secrets.toml
+*.key
+*.pem
+
+# --- База данных / пользовательские данные ---
+*.db
+*.sqlite
+*.sqlite3
+photos/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+.venv/
+venv/
+env/
+
+# --- IDE / ОС ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Служебные скриншоты
+assets/_*.png

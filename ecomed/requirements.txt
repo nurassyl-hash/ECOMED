@@ -1,0 +1,21 @@
+# EcoMed AI MVP — зависимости
+# Базовое окружение: conda env `practical-ai-engineering`
+# Большинство пакетов уже установлено; здесь зафиксирован полный набор для воспроизводимости.
+
+streamlit>=1.58
+pydantic>=2.13
+pydantic-settings>=2.14
+SQLAlchemy>=2.0
+pandas>=2.2
+Pillow>=10
+python-dotenv>=1.0
+rapidfuzz>=3.9
+
+# LLM (OpenAI Agents SDK) — используется для OCR/структурирования и текста отчёта.
+# Если ключ не задан, приложение работает в ручном режиме без внешних вызовов.
+openai>=1.40
+openai-agents>=0.17
+
+# Тесты
+pytest>=8
+pytest-mock>=3.14
