@@ -48,10 +48,10 @@ else:
 
 c1, c2 = st.columns(2)
 name = c1.text_input("Название", value=default_name)
-inns = c2.text_input("Действующие вещества (через запятую)", value=default_inns)
+inns = c2.text_input("Действующие вещества (например, ибупрофен)", value=default_inns)
 c3, c4 = st.columns(2)
 strength = c3.text_input("Дозировка", value=default_strength)
-form = c4.text_input("Форма", value=default_form)
+form = c4.text_input("Форма (таблетка/сироп/капсула)", value=default_form)
 
 if st.button("🔍 Проверить", type="primary"):
     match.record_purchase_check(hid)  # факт проверки (эко-показатель)
