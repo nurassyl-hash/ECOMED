@@ -14,9 +14,11 @@ from ecomed.ui_common import (  # noqa: E402
     asset_data_uri,
     disclaimer,
     household_id,
+    lang_qs,
     page_setup,
     status_badge,
     status_dot,
+    t,
 )
 
 import streamlit as st
@@ -24,8 +26,9 @@ import streamlit as st
 from ecomed.services import inventory_service as inv
 from ecomed.services import matching_service as match
 from ecomed.services import report_service as rep
+from ecomed.services import treatment_service as tr
 
-page_setup("Главная", "🌿")
+page_setup("nav.home", "🌿")
 hid = household_id()
 
 items = inv.list_items(hid)
@@ -115,49 +118,73 @@ HERO_HTML = """
             <div class="ecomed-logo-icon"><img src="__LOGO__" alt="EcoMed AI"></div>
             <div>
                 <div class="ecomed-logo-name">EcoMed AI</div>
-                <div class="ecomed-logo-desc">Умная экологичная аптечка</div>
+                <div class="ecomed-logo-desc">@@LOGO_DESC@@</div>
             </div>
         </div>
         <div class="ecomed-hero-title">
-            Домашняя аптечка без <strong>лишних покупок и просроченных лекарств</strong>
+            @@TITLE@@
         </div>
         <div class="ecomed-hero-sub">
-            Сканируйте упаковки, находите дубликаты, контролируйте срок годности
-            и узнавайте, как безопасно утилизировать лекарства.
+            @@SUB@@
         </div>
         <div class="ecomed-buttons">
-            <a class="ecomed-btn ecomed-btn-primary" href="add" target="_self">Добавить препарат</a>
-            <a class="ecomed-btn ecomed-btn-secondary" href="purchase_check" target="_self">Проверить покупку</a>
+            <a class="ecomed-btn ecomed-btn-primary" href="add__LANGQS__" target="_self">@@BTN_ADD@@</a>
+            <a class="ecomed-btn ecomed-btn-secondary" href="purchase_check__LANGQS__" target="_self">@@BTN_CHECK@@</a>
         </div>
     </div>
     <div class="ecomed-preview">
         <div class="ecomed-preview-head">
             <div class="ecomed-preview-logo">EcoMed AI</div>
-            <div class="ecomed-preview-status">Аптечка проверена</div>
+            <div class="ecomed-preview-status">@@PREVIEW_STATUS@@</div>
         </div>
-        <div class="ecomed-preview-title">Обзор домашней аптечки</div>
+        <div class="ecomed-preview-title">@@PREVIEW_TITLE@@</div>
         <div class="ecomed-preview-grid">
-            <div class="ecomed-preview-card"><div class="ecomed-preview-num">__TOTAL__</div><div class="ecomed-preview-lbl">Всего препаратов</div></div>
-            <div class="ecomed-preview-card"><div class="ecomed-preview-num">__SOON__</div><div class="ecomed-preview-lbl">Скоро истекает срок</div></div>
-            <div class="ecomed-preview-card"><div class="ecomed-preview-num">__DUP__</div><div class="ecomed-preview-lbl">Найдено дубликатов</div></div>
+            <div class="ecomed-preview-card"><div class="ecomed-preview-num">__TOTAL__</div><div class="ecomed-preview-lbl">@@LBL_TOTAL@@</div></div>
+            <div class="ecomed-preview-card"><div class="ecomed-preview-num">__SOON__</div><div class="ecomed-preview-lbl">@@LBL_SOON@@</div></div>
+            <div class="ecomed-preview-card"><div class="ecomed-preview-num">__DUP__</div><div class="ecomed-preview-lbl">@@LBL_DUP@@</div></div>
         </div>
     </div>
 </section>
 """
 
-hero = (HERO_CSS + HERO_HTML)
+# Токены текста намеренно другого синтаксиса, чем числовые: иначе .replace("__TOTAL__")
+# съел бы хвост у "__LBL_TOTAL__".
+_HERO_TEXT_TOKENS = {
+    "@@LOGO_DESC@@": "home.hero.logo_desc",
+    "@@TITLE@@": "home.hero.title",
+    "@@SUB@@": "home.hero.sub",
+    "@@BTN_ADD@@": "home.hero.btn_add",
+    "@@BTN_CHECK@@": "home.hero.btn_check",
+    "@@PREVIEW_STATUS@@": "home.hero.preview_status",
+    "@@PREVIEW_TITLE@@": "home.hero.preview_title",
+    "@@LBL_TOTAL@@": "home.hero.lbl_total",
+    "@@LBL_SOON@@": "home.hero.lbl_soon",
+    "@@LBL_DUP@@": "home.hero.lbl_dup",
+}
+
+hero = HERO_CSS + HERO_HTML
+for _token, _key in _HERO_TEXT_TOKENS.items():
+    hero = hero.replace(_token, t(_key))
 hero = (hero.replace("__HERO__", hero_uri).replace("__LOGO__", logo_uri)
+        .replace("__LANGQS__", lang_qs())
         .replace("__TOTAL__", str(metrics.total_items))
         .replace("__SOON__", str(soon_cnt))
         .replace("__DUP__", str(metrics.duplicate_groups)))
 st.html(hero)
 
+# --- Напоминание о приёме лекарств ---
+# Фоновых задач у Streamlit нет, поэтому напоминание считается при открытии страницы.
+due_now = tr.due_count(hid)
+if due_now:
+    st.warning(t("home.doses.banner", count=due_now), icon="⏰")
+    st.page_link("pages/09_treatment.py", label=t("home.doses.link"))
+
 # --- Навигация (native page_link — надёжно работает в multipage) ---
-st.subheader("Быстрые действия")
+st.subheader(t("home.quick_actions"))
 n1, n2, n3 = st.columns(3)
-n1.page_link("pages/03_purchase_check.py", label="🛒 Проверить перед покупкой", width="stretch")
-n2.page_link("pages/02_add.py", label="➕ Добавить препарат", width="stretch")
-n3.page_link("pages/01_inventory.py", label="📋 Моя аптечка", width="stretch")
+n1.page_link("pages/03_purchase_check.py", label=t("home.link.check"), width="stretch")
+n2.page_link("pages/02_add.py", label=t("home.link.add"), width="stretch")
+n3.page_link("pages/01_inventory.py", label=t("home.link.inventory"), width="stretch")
 
 disclaimer()
 st.divider()
@@ -165,28 +192,29 @@ st.divider()
 # --- Ближайшие действия ---
 left, right = st.columns(2)
 with left:
-    st.subheader("⏳ Требуют внимания")
+    st.subheader(t("home.attention.title"))
     attention = [i for i in items if i["status"] in ("expired", "critical", "soon")]
     attention.sort(key=lambda x: (x["effective_expiry"] or "9999"))
     if not attention:
-        st.success("Нет позиций с близким сроком.")
+        st.success(t("home.attention.empty"))
     for i in attention:
         st.markdown(
-            f"{status_dot(i['status'])} **{i['custom_name']}** — до {i['effective_expiry'] or '—'} "
+            f"{status_dot(i['status'])} **{i['custom_name']}** — "
+            f"{t('home.attention.until', date=i['effective_expiry'] or '—')} "
             f"{status_badge(i['status'])}",
             unsafe_allow_html=True,
         )
     unknowns = [i for i in items if i["status"] == "unknown"]
     if unknowns:
-        st.warning(f"⚪ Без подтверждённого срока: {len(unknowns)} — проверьте по упаковке.")
+        st.warning(t("home.unknown_warn", count=len(unknowns)))
 
 with right:
-    st.subheader("🔁 Возможные дубликаты")
+    st.subheader(t("home.dups.title"))
     dups = match.find_duplicates(hid)
     if not dups:
-        st.caption("Дубликаты не найдены.")
+        st.caption(t("home.dups.empty"))
     for g in dups:
         names = ", ".join(x["name"] for x in g["items"])
-        tag = "точный набор МНН" if g["exact"] else "частичное совпадение"
+        tag = t("home.dups.exact") if g["exact"] else t("home.dups.partial")
         st.markdown(f"• **{', '.join(g['inns'])}** ({tag}): {names}")
-    st.caption("Совпадение по действующему веществу — информация о запасах, не рекомендация по замене.")
+    st.caption(t("home.dups.note"))

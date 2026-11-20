@@ -7,7 +7,7 @@ from typing import Optional
 from ecomed.db.database import get_session
 from ecomed.db.models import InventoryEvent, InventoryItem
 from ecomed.domain import match_level, normalize_inn, normalize_inn_set
-from ecomed.models.schemas import MATCH_TEXT, MatchLevel, PurchaseMatch
+from ecomed.models.schemas import MATCH_TEXT_KEY, MatchLevel, PurchaseMatch
 
 try:
     from rapidfuzz.fuzz import token_sort_ratio
@@ -61,7 +61,7 @@ def check_purchase(
                 continue
             matches.append(PurchaseMatch(
                 level=level,
-                text=MATCH_TEXT[level],
+                text_key=MATCH_TEXT_KEY[level],
                 inventory_item_id=it.id,
                 trade_name=it.custom_name,
                 quantity_remaining=it.quantity_remaining,

@@ -12,25 +12,27 @@ if str(_r) not in _sys.path:
 
 import streamlit as st
 
-from ecomed.ui_common import household_id, page_setup
+from ecomed.ui_common import household_id, page_setup, t
 
-page_setup("Семья", "👪")
+page_setup("nav.family", "👪")
 household_id()
 
-st.title("👪 Семья")
-st.caption("Доступ к строкам ограничен household_id и ролью. Участник видит только свою семью.")
+st.title(t("family.title"))
+st.caption(t("family.subtitle"))
 
-st.subheader("Демо-семья")
-st.markdown("- **Демо-пользователь** — роль: владелец (owner)")
+st.subheader(t("family.demo.title"))
+st.markdown("- " + t("family.demo.member"))
 
-st.subheader("Пригласить участника")
-st.text_input("Ссылка-приглашение (демо)", value="https://ecomed.demo/join/DEMO-2026", disabled=True)
-st.caption("Ссылки приглашения одноразовые или имеют срок действия. В демо приглашение отключено.")
+st.subheader(t("family.invite.title"))
+st.text_input(t("family.invite.link"), value="https://ecomed.demo/join/DEMO-2026", disabled=True)
+st.caption(t("family.invite.note"))
 
-st.subheader("Роли и права")
+st.subheader(t("family.roles.title"))
 st.table([
-    {"Роль": "Владелец", "Права": "Создать семью, приглашать, CRUD, отчёты", "Ограничения": "Не видит данные другой семьи"},
-    {"Роль": "Редактор", "Права": "Добавлять/обновлять, отмечать покупку и утилизацию", "Ограничения": "Не управляет владельцем и настройками"},
-    {"Роль": "Наблюдатель", "Права": "Просмотр, проверка перед покупкой", "Ограничения": "Не меняет остатки, не удаляет"},
-    {"Роль": "Администратор данных", "Права": "Каталог, источники, пункты приёма", "Ограничения": "Нет доступа к личным запасам без основания"},
+    {
+        t("family.col.role"): t(f"family.role.{role}"),
+        t("family.col.rights"): t(f"family.role.{role}.rights"),
+        t("family.col.limits"): t(f"family.role.{role}.limits"),
+    }
+    for role in ("owner", "editor", "viewer", "dataadmin")
 ])

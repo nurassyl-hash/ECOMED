@@ -14,24 +14,40 @@ if str(_r) not in _sys.path:
 import streamlit as st
 
 from ecomed.domain import normalize_inn
-from ecomed.models.schemas import STATUS_LABEL, ExpiryStatus
+from ecomed.models.schemas import ExpiryStatus
 from ecomed.services import inventory_service as inv
-from ecomed.ui_common import household_id, page_setup, status_badge, status_dot
+from ecomed.ui_common import (
+    household_id,
+    page_setup,
+    show_error,
+    status_badge,
+    status_dot,
+    status_label,
+    t,
+)
 
-page_setup("Моя аптечка", "📋")
+page_setup("nav.inventory", "📋")
 hid = household_id()
 
-st.title("📋 Моя аптечка")
+st.title(t("inventory.title"))
 
 items = inv.list_items(hid)
 
 # --- Фильтры ---
 f1, f2, f3 = st.columns([2, 1, 1])
-query = f1.text_input("Поиск по названию или МНН", "")
-status_opts = ["все"] + [s.value for s in ExpiryStatus]
-status_f = f2.selectbox("Статус срока", status_opts, format_func=lambda v: "Все" if v == "все" else STATUS_LABEL[ExpiryStatus(v)])
+ALL = "__all__"  # технический sentinel: не пересекается ни со статусом, ни с местом хранения
+
+query = f1.text_input(t("inventory.search"), "")
+status_opts = [ALL] + [s.value for s in ExpiryStatus]
+status_f = f2.selectbox(
+    t("inventory.filter.status"), status_opts,
+    format_func=lambda v: t("common.all") if v == ALL else status_label(v),
+)
 places = sorted({i["storage_place"] for i in items if i["storage_place"]})
-place_f = f3.selectbox("Место хранения", ["все", *places])
+place_f = f3.selectbox(
+    t("inventory.filter.place"), [ALL, *places],
+    format_func=lambda v: t("common.all") if v == ALL else v,
+)
 
 
 def _match(i: dict) -> bool:
@@ -40,80 +56,87 @@ def _match(i: dict) -> bool:
         hay = normalize_inn(i["custom_name"] + " " + " ".join(i["inns"]))
         if q not in hay:
             return False
-    if status_f != "все" and i["status"] != status_f:
+    if status_f != ALL and i["status"] != status_f:
         return False
-    if place_f != "все" and i["storage_place"] != place_f:
+    if place_f != ALL and i["storage_place"] != place_f:
         return False
     return True
 
 
 filtered = [i for i in items if _match(i)]
-st.caption(f"Показано {len(filtered)} из {len(items)} позиций")
+st.caption(t("inventory.count", shown=len(filtered), total=len(items)))
 
 # --- Таблица-обзор ---
 if filtered:
     st.dataframe(
         [{
             "": status_dot(i["status"]),
-            "Название": i["custom_name"],
-            "МНН": ", ".join(i["inns"]),
-            "Форма": i["dosage_form"] or "—",
-            "Дозировка": i["strength"] or "—",
-            "Остаток": f"{i['quantity_remaining']:g} {i['unit']}",
-            "Срок": i["effective_expiry"] or "неизвестен",
-            "Статус": STATUS_LABEL[ExpiryStatus(i["status"])],
-            "Место": i["storage_place"] or "—",
+            t("inventory.col.name"): i["custom_name"],
+            t("inventory.col.inn"): ", ".join(i["inns"]),
+            t("inventory.col.form"): i["dosage_form"] or "—",
+            t("inventory.col.strength"): i["strength"] or "—",
+            t("inventory.col.qty"): f"{i['quantity_remaining']:g} {i['unit']}",
+            t("inventory.col.expiry"): i["effective_expiry"] or t("common.unknown_expiry"),
+            t("inventory.col.status"): status_label(i["status"]),
+            t("inventory.col.place"): i["storage_place"] or "—",
         } for i in filtered],
         width="stretch", hide_index=True,
     )
 
 st.divider()
-st.subheader("Карточки и действия")
+st.subheader(t("inventory.cards"))
 
 for i in filtered:
     title = f"{status_dot(i['status'])} {i['custom_name']} — {i['quantity_remaining']:g} {i['unit']}"
     with st.expander(title):
         st.markdown(status_badge(i["status"]), unsafe_allow_html=True)
-        meta = f"**МНН:** {', '.join(i['inns']) or '—'} · **Форма:** {i['dosage_form'] or '—'} · **Дозировка:** {i['strength'] or '—'}"
+        meta = (f"**{t('inventory.meta.inn')}:** {', '.join(i['inns']) or '—'} · "
+                f"**{t('inventory.meta.form')}:** {i['dosage_form'] or '—'} · "
+                f"**{t('inventory.meta.strength')}:** {i['strength'] or '—'}")
         st.markdown(meta)
-        st.markdown(f"**Срок (эффективный):** {i['effective_expiry'] or 'неизвестен'} · **Место:** {i['storage_place'] or '—'} · **Источник:** {i['source']}")
+        st.markdown(
+            f"**{t('inventory.meta.expiry')}:** "
+            f"{i['effective_expiry'] or t('common.unknown_expiry')} · "
+            f"**{t('inventory.meta.place')}:** {i['storage_place'] or '—'} · "
+            f"**{t('inventory.meta.source')}:** {i['source']}"
+        )
         if i["expiry_precision"] == "month":
-            st.caption("Срок указан с точностью до месяца.")
+            st.caption(t("inventory.month_precision"))
 
         # Изменение остатка событиями (ТЗ FR-06)
-        st.markdown("**Изменить остаток**")
+        st.markdown(f"**{t('inventory.change_qty')}**")
         a, b, c, d = st.columns(4)
-        step = a.number_input("Кол-во", min_value=0.0, value=1.0, step=1.0, key=f"step_{i['id']}")
-        if b.button("➖ Использовано", key=f"use_{i['id']}"):
+        step = a.number_input(t("inventory.qty_label"), min_value=0.0, value=1.0, step=1.0, key=f"step_{i['id']}")
+        if b.button(t("inventory.btn.used"), key=f"use_{i['id']}"):
             try:
                 inv.update_quantity(i["id"], hid, -step, "used")
                 st.rerun()
             except inv.NegativeStock as e:
-                st.error(f"Операция отклонена: {e}")
-        if c.button("➕ Добавлено", key=f"add_{i['id']}"):
+                show_error("inventory.error.negative_stock", e)
+        if c.button(t("inventory.btn.added"), key=f"add_{i['id']}"):
             inv.update_quantity(i["id"], hid, step, "added")
             st.rerun()
-        if d.button("🗑 Выброшено/передано", key=f"disc_{i['id']}"):
+        if d.button(t("inventory.btn.discarded"), key=f"disc_{i['id']}"):
             try:
                 inv.update_quantity(i["id"], hid, -step, "discarded")
                 st.rerun()
             except inv.NegativeStock as e:
-                st.error(f"Операция отклонена: {e}")
+                show_error("inventory.error.negative_stock", e)
 
         # Срок после вскрытия (ТЗ FR-11)
         with st.form(f"open_{i['id']}"):
-            st.markdown("**Отметить вскрытие (срок после открытия)**")
+            st.markdown(f"**{t('inventory.open.title')}**")
             oc1, oc2 = st.columns(2)
-            opened = oc1.date_input("Дата открытия", value=date.today(), key=f"od_{i['id']}")
-            days = oc2.number_input("Годен после вскрытия, дней", min_value=0, value=0, step=1, key=f"ad_{i['id']}")
-            if st.form_submit_button("Сохранить вскрытие"):
+            opened = oc1.date_input(t("inventory.open.date"), value=date.today(), key=f"od_{i['id']}")
+            days = oc2.number_input(t("inventory.open.days"), min_value=0, value=0, step=1, key=f"ad_{i['id']}")
+            if st.form_submit_button(t("inventory.open.save")):
                 inv.set_opened(i["id"], hid, opened, int(days) or None)
-                st.success("Сохранено. Используется более ранняя из дат.")
+                st.success(t("inventory.open.saved"))
                 st.rerun()
 
-        if st.button("Удалить запись", key=f"del_{i['id']}", type="secondary"):
+        if st.button(t("inventory.delete"), key=f"del_{i['id']}", type="secondary"):
             inv.delete_item(i["id"], hid)
             st.rerun()
 
 if not filtered:
-    st.info("Нет позиций по заданным фильтрам.")
+    st.info(t("inventory.empty"))

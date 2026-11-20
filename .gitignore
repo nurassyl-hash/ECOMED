@@ -4,6 +4,8 @@
 /*
 !/ecomed/
 !/README.md
+# Корневой requirements.txt живёт только в публикуемом репозитории:
+# Streamlit Cloud ставит зависимости именно из него.
 !/requirements.txt
 !/.gitignore
 !/.gitattributes

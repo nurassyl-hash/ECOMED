@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 from typing import Optional
 
 from ecomed.models.schemas import ExpiryStatus, MatchLevel
@@ -152,3 +152,114 @@ def match_level(
         return MatchLevel.D
 
     return MatchLevel.NONE
+
+
+# --------------------------------------------------------------------------
+# Схема приёма лекарств: плановые слоты (чистые функции)
+# --------------------------------------------------------------------------
+DOSE_STATUS_OVERDUE = "overdue"
+DOSE_STATUS_DUE = "due"
+DOSE_STATUS_UPCOMING = "upcoming"
+
+
+def local_now(offset_hours: int) -> datetime:
+    """Текущее локальное время «по настенным часам», без tzinfo.
+
+    Сервер (Streamlit Cloud) работает в UTC, а расписание приёма пользователь
+    задаёт в своём времени. Наивный datetime упрощает сравнение и хранение.
+    """
+    return datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=int(offset_hours))
+
+
+def parse_dose_times(times: list[str] | None) -> list[time]:
+    """'08:00' -> time(8, 0). Мусор молча отбрасывается, результат отсортирован."""
+    parsed: list[time] = []
+    for raw in times or []:
+        text = str(raw).strip()
+        match = re.fullmatch(r"(\d{1,2})[:.](\d{2})", text)
+        if not match:
+            continue
+        hour, minute = int(match.group(1)), int(match.group(2))
+        if 0 <= hour <= 23 and 0 <= minute <= 59:
+            parsed.append(time(hour, minute))
+    return sorted(set(parsed))
+
+
+def default_times_for(per_day: int) -> list[str]:
+    """Разумные часы по числу приёмов в день. Это раскладка по времени суток,
+    а не медицинская рекомендация: пользователь правит их вручную."""
+    presets = {
+        1: ["09:00"],
+        2: ["09:00", "21:00"],
+        3: ["08:00", "14:00", "20:00"],
+        4: ["08:00", "12:00", "16:00", "20:00"],
+        5: ["08:00", "11:00", "14:00", "17:00", "20:00"],
+        6: ["06:00", "10:00", "14:00", "18:00", "22:00", "02:00"],
+    }
+    return presets.get(int(per_day), presets[3])
+
+
+def iter_dose_slots(
+    times: list[str] | None,
+    start_date: date,
+    end_date: Optional[date],
+    from_dt: datetime,
+    to_dt: datetime,
+) -> list[datetime]:
+    """Плановые моменты приёма в окне [from_dt, to_dt].
+
+    end_date=None означает бессрочный курс. Границы окна включительные.
+    """
+    slot_times = parse_dose_times(times)
+    if not slot_times or from_dt > to_dt:
+        return []
+
+    first_day = max(start_date, from_dt.date())
+    last_day = min(end_date, to_dt.date()) if end_date else to_dt.date()
+
+    slots: list[datetime] = []
+    day = first_day
+    while day <= last_day:
+        for slot_time in slot_times:
+            moment = datetime.combine(day, slot_time)
+            if from_dt <= moment <= to_dt:
+                slots.append(moment)
+        day += timedelta(days=1)
+    return sorted(slots)
+
+
+def dose_slot_status(slot: datetime, now: datetime, due_window_minutes: int = 60) -> str:
+    """overdue — время прошло; due — «пора сейчас»; upcoming — ещё впереди."""
+    delta_minutes = (slot - now).total_seconds() / 60
+    if delta_minutes < -due_window_minutes:
+        return DOSE_STATUS_OVERDUE
+    if delta_minutes <= due_window_minutes:
+        return DOSE_STATUS_DUE
+    return DOSE_STATUS_UPCOMING
+
+
+def doses_per_day(times: list[str] | None) -> int:
+    return len(parse_dose_times(times))
+
+
+def stock_runs_out_on(
+    quantity_remaining: float,
+    dose_amount: float,
+    times: list[str] | None,
+    from_date: date,
+) -> Optional[date]:
+    """Последний день, на который хватит текущего остатка.
+
+    None — если приёмов в дне нет или доза не задана. Считается кодом:
+    это арифметика запаса, а не медицинская рекомендация.
+    """
+    per_day = doses_per_day(times)
+    if per_day <= 0 or dose_amount <= 0:
+        return None
+    daily_need = per_day * float(dose_amount)
+    if daily_need <= 0:
+        return None
+    full_days = int(float(quantity_remaining) // daily_need)
+    if full_days <= 0:
+        return None
+    return from_date + timedelta(days=full_days - 1)

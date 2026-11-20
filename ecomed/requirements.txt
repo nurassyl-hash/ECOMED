@@ -2,7 +2,7 @@
 # Базовое окружение: conda env `practical-ai-engineering`
 # Большинство пакетов уже установлено; здесь зафиксирован полный набор для воспроизводимости.
 
-streamlit>=1.58
+streamlit>=1.58,<2   # потолок: локализованное меню опирается на data-testid Streamlit
 pydantic>=2.13
 pydantic-settings>=2.14
 SQLAlchemy>=2.0

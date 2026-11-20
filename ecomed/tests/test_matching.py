@@ -48,3 +48,30 @@ def test_level_d_fuzzy_only():
 def test_level_none():
     assert match_level(same_package_id=False, query_inns=frozenset(["a"]), item_inns=frozenset(["b"]),
                        same_strength=False, same_form=False, name_similarity=0.1) == MatchLevel.NONE
+
+
+def test_match_dump_carries_key_not_translated_text(household):
+    """В st.session_state["pc_matches"] должен попадать ключ, а не готовый текст.
+
+    Иначе после нажатия «Проверить» карточки «залипнут» на языке, который был
+    активен в момент проверки, и смена языка их не перерисует.
+    """
+    import re
+
+    from ecomed.i18n import translate
+    from ecomed.services import inventory_service as inv
+    from ecomed.services import matching_service as match
+
+    inv.add_item(household, custom_name="Парацетамол 500 мг", inns=["Парацетамол"],
+                 dosage_form="таблетки", strength="500 мг", quantity=10)
+    matches = match.check_purchase(household, name="Панадол", inns=["Парацетамол"],
+                                   strength="500 мг", dosage_form="таблетки")
+    assert matches
+    dumped = matches[0].model_dump()
+
+    assert "text" not in dumped, "поле text вернулось — язык снова кэшируется в сессии"
+    assert dumped["text_key"] == "match.b"
+    assert not re.search("[А-Яа-я]", dumped["text_key"])
+
+    # По ключу достаётся текст на любом языке — то есть перерисовка возможна.
+    assert translate(dumped["text_key"], "kk") != translate(dumped["text_key"], "en")

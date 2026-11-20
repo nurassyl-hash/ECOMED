@@ -1,5 +1,6 @@
 # EcoMed AI — зависимости (в корне репозитория для Streamlit Community Cloud).
-streamlit>=1.58
+# Потолок <2: своё меню навигации опирается на data-testid Streamlit.
+streamlit>=1.58,<2
 pydantic>=2.13
 pydantic-settings>=2.14
 SQLAlchemy>=2.0

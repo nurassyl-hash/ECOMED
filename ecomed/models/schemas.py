@@ -61,12 +61,13 @@ STATUS_COLOR = {
     ExpiryStatus.UNKNOWN: "#9e9e9e",
 }
 
-STATUS_LABEL = {
-    ExpiryStatus.EXPIRED: "Просрочено",
-    ExpiryStatus.CRITICAL: "До 30 дней",
-    ExpiryStatus.SOON: "31–90 дней",
-    ExpiryStatus.OK: "Более 90 дней",
-    ExpiryStatus.UNKNOWN: "Срок неизвестен",
+# Ключи i18n, а не готовый текст: перевод берётся в слое UI (ui_common.status_label).
+STATUS_LABEL_KEY = {
+    ExpiryStatus.EXPIRED: "status.expired",
+    ExpiryStatus.CRITICAL: "status.critical",
+    ExpiryStatus.SOON: "status.soon",
+    ExpiryStatus.OK: "status.ok",
+    ExpiryStatus.UNKNOWN: "status.unknown",
 }
 
 
@@ -82,26 +83,20 @@ class MatchLevel(str, Enum):
     NONE = "none"
 
 
-# Тексты пользователю (ТЗ 7.2 + Приложение A)
-MATCH_TEXT = {
-    MatchLevel.A: "Такая упаковка уже есть дома.",
-    MatchLevel.B: (
-        "В домашней аптечке найден препарат с тем же действующим веществом, "
-        "дозировкой и формой. Это не означает, что препараты можно "
-        "самостоятельно заменять."
-    ),
-    MatchLevel.C: (
-        "Совпадает действующее вещество, но отличается дозировка, форма или "
-        "состав. Проверьте упаковку и уточните у врача или фармацевта."
-    ),
-    MatchLevel.D: "Возможное совпадение — проверьте вручную.",
-    MatchLevel.NONE: "Дома такого препарата не найдено.",
+# Ключи текстов для пользователя (ТЗ 7.2 + Приложение A).
+# Сервис отдаёт ключ, перевод подставляет UI — см. ui_common.match_text.
+MATCH_TEXT_KEY = {
+    MatchLevel.A: "match.a",
+    MatchLevel.B: "match.b",
+    MatchLevel.C: "match.c",
+    MatchLevel.D: "match.d",
+    MatchLevel.NONE: "match.none",
 }
 
 
 class PurchaseMatch(BaseModel):
     level: MatchLevel
-    text: str
+    text_key: str
     inventory_item_id: Optional[int] = None
     trade_name: Optional[str] = None
     quantity_remaining: float = 0

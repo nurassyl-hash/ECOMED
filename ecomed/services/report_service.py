@@ -9,6 +9,7 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
 from ecomed.config import settings
+from ecomed.i18n import DEFAULT_LANG, translate
 from ecomed.db.database import get_session
 from ecomed.db.models import DisposalEvent, InventoryEvent, InventoryItem, PriceOffer
 from ecomed.domain import expiry_status, effective_expiry, normalize_inn
@@ -126,30 +127,41 @@ def compute_metrics(
     )
 
 
-def _template_summary(m: ReportMetrics) -> str:
+def _template_summary(m: ReportMetrics, lang: str = DEFAULT_LANG) -> str:
+    """Детерминированный пересказ агрегатов. Переводится: медицинских советов не содержит."""
     parts = [
-        f"{m.total_items} упаковок, {m.unique_inns} уникальных действующих веществ.",
-        f"По срокам: просрочено {m.by_status.get('expired',0)}, "
-        f"до 30 дней {m.by_status.get('critical',0)}, "
-        f"31–90 дней {m.by_status.get('soon',0)}, "
-        f"более 90 дней {m.by_status.get('ok',0)}, "
-        f"неизвестно {m.by_status.get('unknown',0)}.",
-        f"Возможных групп дубликатов: {m.duplicate_groups}.",
-        f"Позиций без зафиксированных изменений остатка за период: {m.stale_items}.",
-        f"Подтверждённая экономия: {m.confirmed_savings} KZT; "
-        f"предотвращённых покупок: {m.avoided_purchases}; "
-        f"подтверждённо переданных упаковок: {m.disposed_packages}.",
+        translate("report.summary.totals", lang, total=m.total_items, inns=m.unique_inns),
+        translate(
+            "report.summary.expiry", lang,
+            expired=m.by_status.get("expired", 0),
+            critical=m.by_status.get("critical", 0),
+            soon=m.by_status.get("soon", 0),
+            ok=m.by_status.get("ok", 0),
+            unknown=m.by_status.get("unknown", 0),
+        ),
+        translate("report.summary.duplicates", lang, groups=m.duplicate_groups),
+        translate("report.summary.stale", lang, stale=m.stale_items),
+        translate(
+            "report.summary.savings", lang,
+            savings=m.confirmed_savings,
+            cur=translate("common.currency", lang),
+            avoided=m.avoided_purchases,
+            disposed=m.disposed_packages,
+        ),
     ]
     return " ".join(parts)
 
 
-def generate_summary(m: ReportMetrics) -> tuple[str, bool]:
+def generate_summary(m: ReportMetrics, lang: str = DEFAULT_LANG) -> tuple[str, bool]:
     """Текст пояснения к отчёту. Возвращает (текст, использован_llm).
 
-    Всегда проходит через пост-фильтр медицинской безопасности.
+    Внимание: `lang` влияет только на детерминированный шаблон. Промпт к модели
+    остаётся русским намеренно — пост-фильтр medical_safety собран из русских
+    регулярок и работает fail-open, поэтому ответ на другом языке прошёл бы
+    любую медицинскую рекомендацию без проверки.
     """
     if not settings.llm_enabled:
-        return _template_summary(m), False
+        return _template_summary(m, lang), False
 
     try:
         from agents import Agent, Runner
@@ -163,10 +175,10 @@ def generate_summary(m: ReportMetrics) -> tuple[str, bool]:
         result = Runner.run_sync(agent, prompt)
         text = str(result.final_output)
     except Exception:
-        return _template_summary(m), False
+        return _template_summary(m, lang), False
 
     safe_text, replaced = post_filter(text)
     if replaced:
         # модель нарушила правила — возвращаем безопасный детерминированный текст
-        return _template_summary(m), False
+        return _template_summary(m, lang), False
     return safe_text, True

@@ -16,13 +16,13 @@ from ecomed.integrations import catalog_provider
 from ecomed.models.schemas import MatchLevel
 from ecomed.services import matching_service as match
 from ecomed.services import report_service as rep
-from ecomed.ui_common import disclaimer, household_id, page_setup
+from ecomed.ui_common import disclaimer, household_id, match_text, page_setup, t
 
-page_setup("Проверить покупку", "🛒")
+page_setup("nav.purchase_check", "🛒")
 hid = household_id()
 
-st.title("🛒 Проверить перед покупкой")
-st.caption("Проверьте, есть ли препарат дома, прежде чем покупать. Результат — информация о запасах, а не разрешение на замену.")
+st.title(t("pc.title"))
+st.caption(t("pc.subtitle"))
 
 _LEVEL_STYLE = {
     MatchLevel.A: ("✅", "#388e3c"),
@@ -33,12 +33,18 @@ _LEVEL_STYLE = {
 
 # Автоподстановка из каталога (упрощённая замена сканирования штрихкода)
 catalog_rows = catalog_provider._rows()
-options = ["— ввести вручную —"] + [f"{r['trade_name']} {r['strength']}" for r in catalog_rows]
-picked = st.selectbox("Выберите из каталога или введите вручную", options)
+MANUAL = -1
+options = [MANUAL] + list(range(len(catalog_rows)))
+picked = st.selectbox(
+    t("pc.catalog.label"), options,
+    format_func=lambda i: (
+        t("pc.catalog.manual") if i == MANUAL
+        else f"{catalog_rows[i]['trade_name']} {catalog_rows[i]['strength']}"
+    ),
+)
 
-if picked != "— ввести вручную —":
-    idx = options.index(picked) - 1
-    row = catalog_rows[idx]
+if picked != MANUAL:
+    row = catalog_rows[picked]
     default_name = row["trade_name"]
     default_inns = row["inn"].replace(";", ", ")
     default_strength = row["strength"]
@@ -47,13 +53,13 @@ else:
     default_name = default_inns = default_strength = default_form = ""
 
 c1, c2 = st.columns(2)
-name = c1.text_input("Название", value=default_name)
-inns = c2.text_input("Действующие вещества (например, ибупрофен)", value=default_inns)
+name = c1.text_input(t("pc.field.name"), value=default_name)
+inns = c2.text_input(t("pc.field.inns"), value=default_inns)
 c3, c4 = st.columns(2)
-strength = c3.text_input("Дозировка", value=default_strength)
-form = c4.text_input("Форма (таблетка/сироп/капсула)", value=default_form)
+strength = c3.text_input(t("pc.field.strength"), value=default_strength)
+form = c4.text_input(t("pc.field.form"), value=default_form)
 
-if st.button("🔍 Проверить", type="primary"):
+if st.button(t("pc.check"), type="primary"):
     match.record_purchase_check(hid)  # факт проверки (эко-показатель)
     st.session_state["pc_matches"] = [
         m.model_dump() for m in match.check_purchase(
@@ -68,23 +74,27 @@ matches = st.session_state.get("pc_matches")
 if matches is not None:
     st.divider()
     if not matches:
-        st.success("Дома такого препарата не найдено — покупка может быть оправдана.")
+        st.success(t("pc.not_found"))
     for m in matches:
         level = MatchLevel(m["level"])
         icon, color = _LEVEL_STYLE.get(level, ("•", "#666"))
         st.markdown(
             f"<div style='border-left:5px solid {color};padding:8px 12px;margin:6px 0;background:#00000008'>"
-            f"<b>{icon} Уровень {level.value}: {m['trade_name']}</b><br>{m['text']}<br>"
-            f"<small>Остаток дома: {m['quantity_remaining']:g} {m['unit']} · "
-            f"срок: {m['expiry_date'] or 'неизвестен'} · место: {m['storage_place'] or '—'}</small></div>",
+            f"<b>{icon} {t('pc.level', level=level.value)}: {m['trade_name']}</b><br>"
+            f"{match_text(level)}<br>"
+            f"<small>{t('pc.remaining')}: {m['quantity_remaining']:g} {m['unit']} · "
+            f"{t('pc.expiry')}: {m['expiry_date'] or t('common.unknown_expiry')} · "
+            f"{t('pc.place')}: {m['storage_place'] or '—'}</small></div>",
             unsafe_allow_html=True,
         )
         if level in (MatchLevel.A, MatchLevel.B):
             price = rep.price_lookup(st.session_state.get("pc_query_name", "") or m["trade_name"])
-            label = f"🚫 Не купил — уже есть дома" + (f" (экономия {price:.0f} ₸)" if price else "")
+            label = t("pc.avoided") + (
+                t("pc.avoided_savings", price=f"{price:.0f}", cur=t("common.currency")) if price else ""
+            )
             if st.button(label, key=f"avoid_{m['inventory_item_id']}"):
                 match.record_avoided_purchase(hid, m["inventory_item_id"], price=price)
-                st.success("Засчитано как подтверждённая предотвращённая покупка.")
+                st.success(t("pc.avoided_ok"))
 
     st.divider()
     disclaimer()

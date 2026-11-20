@@ -34,6 +34,11 @@ class Settings(BaseSettings):
     # Продуктовые дефолты
     ecomed_default_city: str = "Алматы"
 
+    # Смещение локального времени от UTC в часах. Расписание приёма лекарств —
+    # это время «по настенным часам», а Streamlit Cloud работает в UTC.
+    # По умолчанию Алматы (UTC+5).
+    ecomed_tz_offset_hours: int = 5
+
     # Провайдер цен в аптеках: "demo" (локальный CSV) или "api" (партнёрский сервис).
     ecomed_prices_provider: str = "demo"
     ecomed_prices_api_url: str = ""

@@ -13,33 +13,33 @@ if str(_r) not in _sys.path:
 import streamlit as st
 
 from ecomed.config import settings
-from ecomed.ui_common import household_id, page_setup
+from ecomed.ui_common import household_id, page_setup, t
 
-page_setup("Настройки", "⚙️")
+page_setup("nav.settings", "⚙️")
 household_id()
 
-st.title("⚙️ Настройки")
+st.title(t("settings.title"))
 
-st.subheader("Язык и регион")
-st.selectbox("Язык интерфейса", ["Русский", "Қазақша (P1)"])
-st.text_input("Город", value=settings.ecomed_default_city)
+st.subheader(t("settings.lang.section"))
+st.caption(t("settings.lang.hint"))
+st.text_input(t("settings.city"), value=settings.ecomed_default_city)
 
-st.subheader("Согласия (ТЗ раздел 16)")
-st.checkbox("Согласие на обработку данных домашней аптечки", value=True)
-st.checkbox("Согласие на отправку фото внешнему AI-провайдеру", value=False)
-st.caption("Список аптечки может косвенно раскрывать сведения о здоровье. Собираются только запасы — без диагнозов, симптомов и рецептов.")
+st.subheader(t("settings.consent.title"))
+st.checkbox(t("settings.consent.data"), value=True)
+st.checkbox(t("settings.consent.photo"), value=False)
+st.caption(t("settings.consent.note"))
 
-st.subheader("Уведомления")
-st.checkbox("Баннеры о сроках при входе (90 / 30 / 7 дней)", value=True)
-st.checkbox("Уведомление о возможном дубликате после добавления", value=True)
+st.subheader(t("settings.notify.title"))
+st.checkbox(t("settings.notify.expiry"), value=True)
+st.checkbox(t("settings.notify.dup"), value=True)
 
-st.subheader("Данные")
-st.caption("В демо данные хранятся в локальной SQLite и переживают перезапуск приложения.")
-if st.button("🔄 Сбросить демо-данные и пересоздать эталонную аптечку", type="secondary"):
+st.subheader(t("settings.data.title"))
+st.caption(t("settings.data.note"))
+if st.button(t("settings.data.reset"), type="secondary"):
     from ecomed.db.database import _engine
     from ecomed.db.models import Base
     from ecomed.db.seed import seed_demo
     Base.metadata.drop_all(_engine)
     st.cache_resource.clear()
     seed_demo()
-    st.success("Демо-данные пересозданы. Обновите страницу «Главная».")
+    st.success(t("settings.data.reset_ok", page=t("nav.home")))

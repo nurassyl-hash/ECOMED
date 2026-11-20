@@ -18,6 +18,7 @@ from ecomed.db.models import (
     InventoryItem,
     MedicationCatalog,
     PriceOffer,
+    TreatmentCourse,
     User,
 )
 from ecomed.domain import normalize_inn
@@ -107,6 +108,29 @@ def _demo_inventory(today: date) -> list[dict]:
     ]
 
 
+def _add_demo_course(s, household_id: int, demo_items: dict[str, int], today: date) -> None:
+    """Демо-схема лечения, чтобы раздел «Приём лекарств» не был пустым.
+
+    Курс начат вчера — так видно и просроченные, и предстоящие приёмы.
+    Это демонстрационные данные, а не медицинская рекомендация.
+    """
+    item_id = demo_items.get("Амоксициллин 500 мг")
+    if item_id is None:
+        return
+    s.add(TreatmentCourse(
+        household_id=household_id,
+        item_id=item_id,
+        person="Демо-пользователь",
+        medication_name="Амоксициллин 500 мг",
+        dose_amount=1,
+        unit="капсула",
+        times_json=["08:00", "14:00", "20:00"],
+        start_date=today - timedelta(days=1),
+        end_date=today + timedelta(days=5),
+        note="Демонстрационная схема: введена пользователем по назначению врача.",
+        status="active",
+    ))
+
 def seed_demo(today: date | None = None) -> int:
     """Создаёт демо-семью и данные (если ещё нет). Возвращает household_id."""
     init_db()
@@ -133,6 +157,7 @@ def seed_demo(today: date | None = None) -> int:
         if s.query(DisposalPoint).count() == 0:
             _load_disposal(s)
 
+        demo_items: dict[str, int] = {}
         for spec in _demo_inventory(today):
             from ecomed.domain import parse_expiry
             exp = parse_expiry(spec["expiry_raw"]) if spec["expiry_raw"] else None
@@ -147,6 +172,9 @@ def seed_demo(today: date | None = None) -> int:
             s.flush()
             s.add(InventoryEvent(item_id=item.id, household_id=hh.id,
                                  event_type="added", quantity_delta=spec["quantity"]))
+            demo_items[spec["custom_name"]] = item.id
+
+        _add_demo_course(s, hh.id, demo_items, today)
         return hh.id
 
 
