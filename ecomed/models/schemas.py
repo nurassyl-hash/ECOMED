@@ -9,23 +9,42 @@ from datetime import date
 from enum import Enum
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+
+
+class _NullTolerant(BaseModel):
+    """Базовая модель, в которой явный null равнозначен отсутствию поля.
+
+    Vision-LLM отвечает по нестрогой схеме (см. ocr_provider) и для нечитаемых
+    полей присылает null даже там, где у нас стоит обязательный тип с дефолтом,
+    например `package_quantity.value`. Pydantic дефолт в этом случае не
+    подставляет и роняет весь разбор — распознанная упаковка теряется целиком
+    из-за одного поля. Выбрасываем null'ы до валидации, тогда срабатывают
+    дефолты, а Optional-поля всё равно остаются None.
+    """
+
+    @model_validator(mode="before")
+    @classmethod
+    def _drop_nulls(cls, data):
+        if isinstance(data, dict):
+            return {k: v for k, v in data.items() if v is not None}
+        return data
 
 
 # --------------------------------------------------------------------------
 # Распознавание упаковки (ТЗ 7.1)
 # --------------------------------------------------------------------------
-class ActiveIngredient(BaseModel):
-    name: str
+class ActiveIngredient(_NullTolerant):
+    name: str = ""
     strength: Optional[str] = None
 
 
-class PackageQuantity(BaseModel):
+class PackageQuantity(_NullTolerant):
     value: float = 0
     unit: str = "tablet"
 
 
-class RecognizedPackage(BaseModel):
+class RecognizedPackage(_NullTolerant):
     """Строгий JSON-выход vision-LLM (или ручной формы)."""
 
     trade_name: Optional[str] = None
