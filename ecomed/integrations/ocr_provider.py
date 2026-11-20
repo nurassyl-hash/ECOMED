@@ -40,7 +40,7 @@ def recognize(image_bytes: bytes, mime: str = "image/jpeg") -> tuple[RecognizedP
         raise ProviderUnavailable("OPENAI_API_KEY не задан — доступен только ручной ввод.")
 
     try:
-        from agents import Agent, Runner  # openai-agents
+        from agents import Agent, AgentOutputSchema, Runner  # openai-agents
     except ImportError as e:  # pragma: no cover
         raise ProviderUnavailable(f"openai-agents не установлен: {e}")
 
@@ -51,7 +51,12 @@ def recognize(image_bytes: bytes, mime: str = "image/jpeg") -> tuple[RecognizedP
         name="PackageRecognizer",
         instructions=_INSTRUCTIONS,
         model=settings.ecomed_vision_model,
-        output_type=RecognizedPackage,
+        # strict_json_schema=False обязателен: в RecognizedPackage есть
+        # field_confidence: dict[str, float], а произвольный объект в strict-схеме
+        # OpenAI запрещён. С output_type=RecognizedPackage напрямую SDK отбраковывает
+        # схему локально, ДО сетевого вызова, и распознавание всегда падало в
+        # ProviderUnavailable — выглядело как проблема с ключом.
+        output_type=AgentOutputSchema(RecognizedPackage, strict_json_schema=False),
     )
     content = [
         {"type": "input_text", "text": "Извлеки поля с этой упаковки."},

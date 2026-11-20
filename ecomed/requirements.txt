@@ -13,8 +13,11 @@ rapidfuzz>=3.9
 
 # LLM (OpenAI Agents SDK) — используется для OCR/структурирования и текста отчёта.
 # Если ключ не задан, приложение работает в ручном режиме без внешних вызовов.
-openai>=1.40
-openai-agents>=0.17
+# Потолки обязательны: output_type распознавания опирается на AgentOutputSchema
+# (ocr_provider.py), а правила strict-схем меняются между минорными версиями SDK.
+# Проверено на openai 2.44.0 + openai-agents 0.17.7.
+openai>=2.44,<3
+openai-agents>=0.17.7,<0.18
 
 # Тесты
 pytest>=8
